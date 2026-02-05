@@ -14,10 +14,14 @@ async function listModels() {
      */
 
     console.log("Checking API access...");
-    if (!process.env.GEMINI_API_KEY) {
-        console.error("No API Key found");
-        return;
+    const apiKey = process.env.MEDTECH_GEMINI_KEY;
+    if (!apiKey) {
+        console.error("Error: MEDTECH_GEMINI_KEY is not defined in .env.local");
+        process.exit(1);
     }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" }); // Placeholder init
 
     console.log("API Key present. Attempting to use 'gemini-pro' via simple generate...");
     // We'll just try to hit 'gemini-pro' directly with a simple prompt.

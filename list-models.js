@@ -3,11 +3,10 @@ const fetch = require('node-fetch');
 require('dotenv').config({ path: '.env.local' });
 
 async function listAvailableModels() {
-    const apiKey = process.env.GEMINI_API_KEY;
-
+    const apiKey = process.env.MEDTECH_GEMINI_KEY;
     if (!apiKey) {
-        console.error('No API key found');
-        return;
+        console.error("Error: MEDTECH_GEMINI_KEY is not defined in .env.local");
+        process.exit(1);
     }
 
     console.log('Fetching available models...\n');

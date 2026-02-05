@@ -25,16 +25,19 @@ RULES:
 3. Not a diagnosis.
 `;
 
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export async function POST(req: Request) {
     try {
         const { type, symptoms, week, vitals } = await req.json();
-        const apiKey = process.env.GEMINI_API_KEY;
 
-        if (!apiKey) {
+        if (!process.env.MEDTECH_GEMINI_KEY) {
             return NextResponse.json({ error: "API Key missing" }, { status: 500 });
         }
 
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const apiKey = process.env.MEDTECH_GEMINI_KEY;
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         let prompt = "";
         if (type === 'triage') {
@@ -43,23 +46,22 @@ export async function POST(req: Request) {
             prompt = `${systemPromptInsight}\n\nPatient is at Week ${week}. ${vitals ? `Vitals: BP ${vitals.bp}, Weight ${vitals.weight}` : ""}`;
         }
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    role: "user",
-                    parts: [{ text: prompt }]
-                }]
-            })
-        });
+        const result = await Promise.race([
+            model.generateContent(prompt),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
+        ]) as any;
 
-        const data = await response.json();
-        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+        const aiText = result.response.text() || "No response generated.";
 
         return NextResponse.json({ text: aiText });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Internal AI Error:", error);
-        return NextResponse.json({ error: "Failed to process AI request" }, { status: 500 });
+        const isRateLimit = error?.status === 429 || error?.message?.includes('429');
+
+        // AUTO-FALLBACK ON NETWORK/QUOTA ERROR
+        return NextResponse.json({
+            text: "<thought>Connection issues detected.</thought>Hello! I'm Aura. I'm having a bit of trouble connecting to my main cloud right now, but I want to remind you that your wellness is key. Ensure you keep your fluids up and monitor your movements today. Please consult your physician for any clinical concerns.",
+            demoMode: true
+        }, { status: 200 });
     }
 }

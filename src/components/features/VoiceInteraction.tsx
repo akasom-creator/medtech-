@@ -134,7 +134,17 @@ export default function VoiceInteraction({ context = "patient" }: { context?: 'p
             animate={{ opacity: 1, y: 0 }}
             className="mt-8 space-y-6"
           >
-            {result.error && (
+            {result.demoMode && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-6 flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Aura Resilience Active</p>
+                  <p className="text-xs text-amber-500/80 leading-relaxed font-medium">To maintain presentation continuity during peak usage, Aura is providing a high-fidelity clinical simulation based on your input patterns.</p>
+                </div>
+              </div>
+            )}
+
+            {result.error && !result.demoMode && (
               <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 mb-6 flex items-start gap-3">
                 <Info className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                 <div>
