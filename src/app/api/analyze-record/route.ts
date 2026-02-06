@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         const imageData = (typeof image === 'string' && image.includes(',')) ? image.split(',')[1] : image;
 
         const result = await Promise.race([
-            model.generateContent([
+            genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" }).generateContent([
                 prompt,
                 {
                     inlineData: {

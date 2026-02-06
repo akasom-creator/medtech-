@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Square, Loader2, Sparkles, Play, Info } from "lucide-react";
+import { Mic, Square, Loader2, Sparkles, Play, Info, AlertTriangle, HeartPulse, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function VoiceInteraction({ context = "patient" }: { context?: 'patient' | 'doctor' }) {
@@ -10,6 +10,8 @@ export default function VoiceInteraction({ context = "patient" }: { context?: 'p
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [escalating, setEscalating] = useState(false);
+  const [escalated, setEscalated] = useState(false);
   
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -29,6 +31,7 @@ export default function VoiceInteraction({ context = "patient" }: { context?: 'p
       mediaRecorder.current.start();
       setIsRecording(true);
       setResult(null);
+      setEscalated(false);
     } catch (err) {
       console.error("Mic access denied:", err);
     }
@@ -65,6 +68,28 @@ export default function VoiceInteraction({ context = "patient" }: { context?: 'p
       console.error("Voice analysis failed:", error);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const triggerEscalation = async () => {
+    if (!result) return;
+    setEscalating(true);
+    try {
+        await fetch('/api/clinical-escalation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                patientName: "Presentation User",
+                severity: result.safetyFlag || "high",
+                reason: result.clinicalSummary,
+                transcription: result.transcription
+            })
+        });
+        setEscalated(true);
+    } catch (error) {
+        console.error("Escalation failed:", error);
+    } finally {
+        setEscalating(false);
     }
   };
 
@@ -139,7 +164,7 @@ export default function VoiceInteraction({ context = "patient" }: { context?: 'p
                 <Sparkles className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-xs font-bold text-amber-500 uppercase tracking-widest mb-1">Aura Resilience Active</p>
-                  <p className="text-xs text-amber-500/80 leading-relaxed font-medium">To maintain presentation continuity during peak usage, Aura is providing a high-fidelity clinical simulation based on your input patterns.</p>
+                  <p className="text-xs text-amber-500/80 leading-relaxed font-medium">To maintain presentation continuity during peak usage, Aura is providing a high-fidelity clinical simulation.</p>
                 </div>
               </div>
             )}
@@ -154,42 +179,143 @@ export default function VoiceInteraction({ context = "patient" }: { context?: 'p
               </div>
             )}
 
-            <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 mb-4">
+            {/* SAFETY ESCALATION BLOCK */}
+            {(result.safetyFlag === 'critical' || result.safetyFlag === 'moderate') && (
+                <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className={cn(
+                        "p-6 rounded-[2rem] border-2 mb-6 shadow-2xl overflow-hidden relative",
+                        result.safetyFlag === 'critical' 
+                            ? "bg-red-500/10 border-red-500/30 shadow-red-500/10" 
+                            : "bg-amber-500/10 border-amber-500/30 shadow-amber-500/10"
+                    )}
+                >
+                    <div className="absolute top-0 right-0 p-6 opacity-10">
+                        <ShieldAlert className="w-24 h-24" />
+                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className={cn(
+                                "p-2 rounded-lg",
+                                result.safetyFlag === 'critical' ? "bg-red-500 text-white" : "bg-amber-500 text-white"
+                            )}>
+                                <AlertTriangle className="w-5 h-5" />
+                            </div>
+                            <h3 className="text-lg font-black uppercase tracking-tighter">
+                                {result.safetyFlag === 'critical' ? 'High Urgency Alert' : 'Wellness Precaution'}
+                            </h3>
+                        </div>
+                        <p className="text-sm font-medium mb-6 opacity-80 leading-relaxed">
+                            Aura has detected signals that may require clinical attention. We recommend notifying our on-call specialist.
+                        </p>
+                        
+                        <button 
+                            disabled={escalating || escalated}
+                            onClick={triggerEscalation}
+                            className={cn(
+                                "w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                                escalated 
+                                    ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30"
+                                    : result.safetyFlag === 'critical'
+                                        ? "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/20"
+                                        : "bg-amber-600 text-white hover:bg-amber-700 shadow-lg shadow-amber-500/20"
+                            )}
+                        >
+                            {escalating ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Alerting Specialists...</>
+                            ) : escalated ? (
+                                <><CheckCircle2 className="w-4 h-4" /> Specialist Notified</>
+                            ) : (
+                                <><ShieldAlert className="w-4 h-4" /> Notify Clinical Team Now</>
+                            )}
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+
+            {result.auraResponse && (
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="p-6 rounded-[2rem] bg-indigo-600 text-white shadow-xl shadow-indigo-500/20 relative overflow-hidden group"
+              >
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                  <Sparkles className="w-12 h-12" />
+                </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Aura is speaking</p>
+                  </div>
+                  <p className="text-lg font-medium leading-relaxed italic">"{result.auraResponse}"</p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ACTION PLAN CARDS */}
+            {result.actionPlan && result.actionPlan.length > 0 && (
+                <div className="grid grid-cols-1 gap-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 ml-4">Immediate Action Plan</p>
+                    <div className="flex flex-col gap-2">
+                        {result.actionPlan.map((step: string, idx: number) => (
+                            <motion.div 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: idx * 0.1 }}
+                                key={idx}
+                                className="flex items-center gap-4 p-4 rounded-2xl bg-secondary/20 border border-primary/5 hover:border-primary/20 transition-all group"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary group-hover:scale-110 transition-transform">
+                                    {idx + 1}
+                                </div>
+                                <p className="text-sm font-bold opacity-80">{step}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
                <p className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-2 flex items-center gap-2">
                  <Play className="w-3 h-3" /> Transcription
                </p>
                <p className="text-sm italic opacity-70">
-                 {result.transcription ? `"${result.transcription}"` : "No clear speech detected. Please speak louder and closer to the microphone."}
+                 {result.transcription ? `"${result.transcription}"` : "No clear speech detected. Please try again."}
                </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
-                 <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-2">Summary</p>
-                 <p className="text-xs font-bold">{result.clinicalSummary}</p>
+                 <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest mb-2 flex items-center gap-2">
+                    <HeartPulse className="w-3 h-3" /> Clinical Summary
+                 </p>
+                 <p className="text-xs font-bold leading-relaxed">{result.clinicalSummary}</p>
                </div>
                <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10">
-                 <p className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2">Internal Reasoning</p>
+                 <p className="text-[10px] font-black uppercase text-amber-500 tracking-widest mb-2 flex items-center gap-2">
+                    <Sparkles className="w-3 h-3" /> Aura Reasoning
+                 </p>
                  <p className="text-[10px] leading-relaxed opacity-60">{result.reasoning}</p>
                </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-secondary/30 border border-primary/5">
-               <p className="text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
-                 <Info className="w-3 h-3" /> Clinical Entities
+               <p className="text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2 font-black">
+                 <Info className="w-3 h-3" /> Clinical Entities Detected
                </p>
                 <div className="flex flex-wrap gap-2">
                   {result.entities?.symptoms?.map((s: string) => (
-                    <span key={s} className="px-2 py-1 bg-red-500/10 text-red-500 text-[9px] font-black rounded-md uppercase">{s}</span>
+                    <span key={s} className="px-2 py-1 bg-red-500/10 text-red-500 text-[9px] font-black rounded-md uppercase border border-red-500/10">{s}</span>
                   )) || <span className="text-[9px] opacity-40 uppercase font-bold italic">No symptoms detected</span>}
                   {result.entities?.meds?.map((m: string) => (
-                    <span key={m} className="px-2 py-1 bg-blue-500/10 text-blue-500 text-[9px] font-black rounded-md uppercase">{m}</span>
+                    <span key={m} className="px-2 py-1 bg-blue-500/10 text-blue-500 text-[9px] font-black rounded-md uppercase border border-blue-500/10">{m}</span>
                   ))}
                 </div>
             </div>
 
             <button 
-              onClick={() => { setAudioBlob(null); setResult(null); }}
+              onClick={() => { setAudioBlob(null); setResult(null); setEscalated(false); }}
               className="w-full py-2 text-[10px] font-black uppercase tracking-widest text-foreground/30 hover:text-foreground transition-colors"
             >
               Discard and re-record

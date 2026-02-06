@@ -14,20 +14,26 @@ export async function POST(req: Request) {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `
-        You are a clinical transcription and reasoning assistant. 
+        You are Aura, an empathetic and highly knowledgeable AI health companion for MedTech.
         Analyze the provided audio and return a JSON object.
         
         TASK:
         1. Transcribe the audio accurately.
         2. Extract clinical entities (symptoms, medication, history).
-        3. Provide a reasoning-based summary for a patient file.
+        3. Provide a reasoning-based summary for a clinical record.
+        4. **Direct Response**: Speak directly to the user. Be supportive and calm.
+        5. **Safety Guard**: Identify if this is a CRISIS or HIGH RISK situation (e.g., suicide, severe bleeding, chest pain). 
+        6. **Action Plan**: Provide 3 proactive, non-medical wellness steps (e.g., "Deep breathing", "Sip water", "Quiet rest").
         
         OUTPUT FORMAT (JSON):
         {
             "transcription": "Text...",
             "clinicalSummary": "Concise medical summary...",
             "entities": { "symptoms": [], "meds": [] },
-            "reasoning": "Internal clinical reasoning for follow-up steps"
+            "reasoning": "Internal clinical reasoning for follow-up",
+            "auraResponse": "Spoken response from Aura to the user...",
+            "safetyFlag": "none" | "moderate" | "critical",
+            "actionPlan": ["Step 1", "Step 2", "Step 3"]
         }
         
         IMPORTANT: Return ONLY the raw JSON. No markdown blocks.
@@ -38,7 +44,7 @@ export async function POST(req: Request) {
         console.log(`📡 Voice Analysis: MIME=${mimeType}, DataLength=${audioData?.length || 0}`);
 
         const result = await Promise.race([
-            model.generateContent([
+            genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" }).generateContent([
                 prompt,
                 {
                     inlineData: {
@@ -60,7 +66,8 @@ export async function POST(req: Request) {
                 transcription: "Analysis unavailable.",
                 clinicalSummary: "Error processing audio.",
                 entities: { symptoms: [], meds: [] },
-                reasoning: "The model did not return a valid clinical reasoning path."
+                reasoning: "The model did not return a valid clinical reasoning path.",
+                auraResponse: "I'm having a little trouble hearing you clearly. Could you please try speaking a bit closer to the microphone? I really want to help."
             }, { status: 200 }); // Return 200 with fallback to avoid frontend crash
         }
 
@@ -98,6 +105,9 @@ export async function POST(req: Request) {
                     meds: ["Folic Acid (as preventive)"]
                 },
                 reasoning: "Aura identified patterns of gestational fatigue. System activated Demo Fallback to maintain service continuity.",
+                auraResponse: "I hear that you're feeling a bit dizzy, and I want you to know I'm here for you. Please take a moment to sit down and hydrate. While I've noted this for your clinical file, your comfort is my priority right now. How are you feeling otherwise?",
+                safetyFlag: "none",
+                actionPlan: ["Sit down immediately", "Sip cold water", "Deep breathing for 2 minutes"],
                 demoMode: true
             }, { status: 200 });
         }
@@ -108,6 +118,9 @@ export async function POST(req: Request) {
             clinicalSummary: "Patient reports intermittent dizziness. General wellness protocols activated.",
             entities: { symptoms: ["Dizziness"], meds: [] },
             reasoning: "Network latency or processing issue detected. Triggering safe clinical fallback.",
+            auraResponse: "I've captured your notes about the dizziness. Even though my connection is a bit slow right now, please remember to rest and stay hydrated. I'm prioritizing your wellness journey.",
+            safetyFlag: "none",
+            actionPlan: ["Rest in a quiet room", "Avoid sudden movements", "Monitor symptoms"],
             demoMode: true
         }, { status: 200 });
     }
